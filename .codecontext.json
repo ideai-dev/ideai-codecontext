@@ -1,0 +1,26 @@
+{
+    "excludePaths": [
+        ".git",
+        ".idea",
+        ".gradle",
+        "build",
+        "target",
+        "node_modules",
+        ".vscode",
+        "out",
+        "dist",
+        ".next"
+    ],
+    "maxFilesAnalyze": 5000,
+    "gitCommitLimit": 1000,
+    "enableCache": true,
+    "enableParallel": true,
+    "hotspotCount": 15,
+    "learningPathLength": 20,
+    "ai": {
+        "enabled": true,
+        "provider": "anthropic",
+        "apiKey": "heuristic",
+        "model": "claude-sonnet-4-20250514"
+    }
+}
