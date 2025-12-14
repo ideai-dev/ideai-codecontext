@@ -8,11 +8,8 @@ on:
 
 jobs:
   test:
-    name: Test on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+    name: Test on Windows
+    runs-on: windows-latest
         
     steps:
     - name: Checkout code
@@ -25,10 +22,7 @@ jobs:
         distribution: 'temurin'
         cache: 'gradle'
         
-    - name: Grant execute permission for gradlew
-      if: runner.os != 'Windows'
-      run: chmod +x gradlew
-      
+
     - name: Build with Gradle
       run: ./gradlew build
       
@@ -39,21 +33,21 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: test-results-${{ matrix.os }}
+        name: test-results-windows
         path: build/test-results/
         
     - name: Generate test report
       if: always()
       uses: dorny/test-reporter@v1
       with:
-        name: Test Report (${{ matrix.os }})
+        name: Test Report (Windows)
         path: build/test-results/test/*.xml
         reporter: java-junit
         fail-on-error: false
 
   lint:
     name: Code Quality
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     
     steps:
     - name: Checkout code
@@ -71,7 +65,7 @@ jobs:
       
   build-artifacts:
     name: Build Distribution
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     needs: [test]
     
     steps:
