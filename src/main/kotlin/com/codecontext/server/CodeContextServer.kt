@@ -45,6 +45,9 @@ fun Application.module() {
         anyHost()
     }
 
+    // Configure rate limiting
+    configureRateLimiting()
+
     routing {
         // Serve static reports
         staticFiles("/reports", File("output"))
@@ -270,5 +273,72 @@ fun sanitizePath(inputPath: String): String? {
         return if (isAllowed) canonicalPath else null
     } catch (e: Exception) {
         return null
+    }
+}
+
+/**
+ * Configure rate limiting for the API server. Intercepts requests and enforces per-client rate
+ * limits.
+ */
+fun Application.configureRateLimiting() {
+    val config = ConfigLoader.load()
+
+    // Skip if rate limiting is disabled
+    if (!config.rateLimit.enabled) {
+        println("⚠️  Rate limiting is disabled")
+        return
+    }
+
+    val rateLimiter =
+            RateLimiter(
+                    maxRequestsPerMinute = config.rateLimit.requestsPerMinute,
+                    maxRequestsPerHour = config.rateLimit.requestsPerHour
+            )
+
+    println(
+            "✅ Rate limiting enabled: ${config.rateLimit.requestsPerMinute}/min, ${config.rateLimit.requestsPerHour}/hour"
+    )
+
+    intercept(ApplicationCallPipeline.Call) {
+        // Extract client identifier (API key or IP address)
+        val clientId = call.request.header("x-api-key") ?: call.request.local.remoteHost
+
+        // Check rate limit
+        if (!rateLimiter.checkLimit(clientId)) {
+            val retryAfter = rateLimiter.getSecondsUntilReset(clientId)
+            val remaining = rateLimiter.getRemainingMinute(clientId)
+
+            call.response.headers.append("Retry-After", retryAfter.toString())
+            call.response.headers.append(
+                    "X-RateLimit-Limit",
+                    config.rateLimit.requestsPerMinute.toString()
+            )
+            call.response.headers.append("X-RateLimit-Remaining", "0")
+            call.response.headers.append(
+                    "X-RateLimit-Reset",
+                    (System.currentTimeMillis() / 1000 + retryAfter).toString()
+            )
+
+            call.respond(
+                    io.ktor.http.HttpStatusCode.TooManyRequests,
+                    mapOf(
+                            "error" to "Rate limit exceeded",
+                            "message" to
+                                    "Too many requests. Please try again in $retryAfter seconds.",
+                            "retryAfter" to retryAfter
+                    )
+            )
+            return@intercept finish()
+        }
+
+        // Add rate limit headers to successful responses
+        val remaining = rateLimiter.getRemainingMinute(clientId)
+        call.response.headers.append(
+                "X-RateLimit-Limit",
+                config.rateLimit.requestsPerMinute.toString()
+        )
+        call.response.headers.append("X-RateLimit-Remaining", remaining.toString())
+
+        proceed()
     }
 }

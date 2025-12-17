@@ -26,7 +26,8 @@ data class CodeContextConfig(
         val enableParallel: Boolean = true,
         val hotspotCount: Int = 15,
         val learningPathLength: Int = 20,
-        val ai: AIConfig = AIConfig()
+        val ai: AIConfig = AIConfig(),
+        val rateLimit: RateLimitConfig = RateLimitConfig()
 )
 
 @Serializable
@@ -35,6 +36,13 @@ data class AIConfig(
         val provider: String = "anthropic", // "anthropic" or "openai"
         val apiKey: String = "",
         val model: String = "claude-sonnet-4-20250514"
+)
+
+@Serializable
+data class RateLimitConfig(
+        val enabled: Boolean = true,
+        val requestsPerMinute: Int = 60,
+        val requestsPerHour: Int = 1000
 )
 
 object ConfigLoader {
