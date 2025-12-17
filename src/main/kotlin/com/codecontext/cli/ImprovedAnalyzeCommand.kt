@@ -24,18 +24,30 @@ class ImprovedAnalyzeCommand :
     private val noCache by option("--no-cache", help = "Disable caching").flag()
     private val clearCache by option("--clear-cache", help = "Clear cache before analyzing").flag()
 
+    // FIX: Add verbose mode for debugging
+    private val verbose by option("--verbose", "-v", help = "Enable verbose logging").flag()
+
     override fun run() {
         echo("🚀 Starting CodeContext analysis for: $path")
 
-        // Load config
-        val config = ConfigLoader.load()
+        // FIX: Validate path before starting
+        val rootDir = File(path)
+        if (!rootDir.exists()) {
+            echo("❌ Error: Path does not exist: $path")
+            return
+        }
+        if (!rootDir.isDirectory) {
+            echo("❌ Error: Path is not a directory: $path")
+            return
+        }
 
+        val config = ConfigLoader.load()
         val time = measureTimeMillis {
             try {
                 // Clear cache if requested
                 if (clearCache) {
                     CacheManager().clear()
-                    echo("🗑️ Cache cleared")
+                    echo("🗑️  Cache cleared")
                 }
 
                 // 1. Scan
@@ -46,49 +58,73 @@ class ImprovedAnalyzeCommand :
 
                 if (files.isEmpty()) {
                     echo("❌ No source files found")
+                    echo("   Supported extensions: .kt, .java")
+                    echo("   Make sure you're in a source code directory")
                     return
                 }
 
                 if (files.size > config.maxFilesAnalyze) {
-                    echo("⚠️ Too many files (${files.size}). Limit: ${config.maxFilesAnalyze}")
+                    echo("⚠️  Too many files (${files.size}). Limit: ${config.maxFilesAnalyze}")
+                    echo("   Increase maxFilesAnalyze in .codecontext.json to analyze more files")
                     return
                 }
 
-                // 2. Parse (with caching and parallel processing)
+                // 2. Parse (with better error handling)
                 echo("🧠 Parsing code...")
                 val cacheManager = if (config.enableCache && !noCache) CacheManager() else null
                 val parser = CodeParallelParser(cacheManager)
 
-                // Run suspending function in blocking context
-                val parsedFiles: List<ParsedFile> = runBlocking { parser.parseFiles(files) }
+                val parsedFiles: List<ParsedFile> =
+                        try {
+                            runBlocking { parser.parseFiles(files) }
+                        } catch (e: Exception) {
+                            echo("❌ Parsing failed: ${e.message}")
+                            if (verbose) e.printStackTrace()
+                            return
+                        }
 
                 echo("   Parsed ${parsedFiles.size} files")
 
-                // 3. Git Analysis (optimized)
-                echo("📜 Analyzing Git history...")
-                val gitAnalyzer = OptimizedGitAnalyzer()
-                val enrichedFiles = gitAnalyzer.analyze(File(path).absolutePath, parsedFiles)
+                // FIX: Warn if many files failed to parse
+                val failedCount = files.size - parsedFiles.size
+                if (failedCount > 0) {
+                    echo("   ⚠️  $failedCount files failed to parse (see logs above)")
+                }
 
-                // 4. Build Graph
-                echo("🕸️ Building dependency graph...")
+                // 3. Git Analysis (with error handling)
+                echo("📜 Analyzing Git history...")
+                val enrichedFiles =
+                        try {
+                            val gitAnalyzer = OptimizedGitAnalyzer()
+                            gitAnalyzer.analyze(File(path).absolutePath, parsedFiles)
+                        } catch (e: Exception) {
+                            echo("   ⚠️  Git analysis failed: ${e.message}")
+                            if (verbose) e.printStackTrace()
+                            parsedFiles // Continue without git metadata
+                        }
+
+                // 4. Build Graph (with validation)
+                echo("🕸️  Building dependency graph...")
                 val graph = RobustDependencyGraph()
 
                 val buildResult = graph.build(enrichedFiles)
                 if (buildResult.isFailure) {
                     echo("❌ Failed to build graph: ${buildResult.exceptionOrNull()?.message}")
+                    if (verbose) buildResult.exceptionOrNull()?.printStackTrace()
                     return
                 }
 
                 val analyzeResult = graph.analyze()
                 if (analyzeResult.isFailure) {
                     echo("❌ Failed to analyze graph: ${analyzeResult.exceptionOrNull()?.message}")
+                    if (verbose) analyzeResult.exceptionOrNull()?.printStackTrace()
                     return
                 }
 
                 // Show hotspots
                 val hotspots = graph.getTopHotspots(config.hotspotCount)
-                echo("🗺️ Your Codebase Map")
-                echo("├─ 🔥 Hot Zones (Top ${hotspots.size}):")
+                echo("🗺️  Your Codebase Map")
+                echo("├─ 🔥 Hot Zones (Top ${minOf(5, hotspots.size)}):")
                 hotspots.take(5).forEachIndexed { index, (file, score) ->
                     val prefix =
                             if (index == 4 || index == hotspots.lastIndex) "│   └─" else "│   ├─"
@@ -109,33 +145,47 @@ class ImprovedAnalyzeCommand :
 
                 echo("✅ Report: ${reportFile.absolutePath}")
 
-                // 6. AI Analysis (Optional)
+                // 6. AI Analysis (with proper error handling)
                 if (config.ai.enabled && config.ai.apiKey.isNotBlank()) {
-                    echo("🤖 Generating AI Insights (this may take a minute)...")
+                    echo("🤖 Generating AI Insights...")
+
                     val aiAnalyzer = AICodeAnalyzer(config.ai.apiKey, config.ai.model)
 
-                    runBlocking {
-                        // Batch analyze top hotspots
-                        val insights = aiAnalyzer.batchAnalyze(enrichedFiles, graph, limit = 10)
+                    if (!aiAnalyzer.isConfigured()) {
+                        echo("   ⚠️  AI is enabled but not properly configured")
+                        echo("   Check your API key in .codecontext.json")
+                    } else {
+                        try {
+                            runBlocking {
+                                val insights =
+                                        aiAnalyzer.batchAnalyze(enrichedFiles, graph, limit = 10)
 
-                        val aiReportFile = File(outputDir, "ai-insights.md")
-                        aiReportFile.writeText("# AI Code Insights\n\n")
+                                val aiReportFile = File(outputDir, "ai-insights.md")
+                                aiReportFile.writeText("# AI Code Insights\n\n")
 
-                        insights.forEach { (path, insight) ->
-                            aiReportFile.appendText("## ${File(path).name}\n")
-                            aiReportFile.appendText("**Purpose**: ${insight.purpose}\n\n")
-                            aiReportFile.appendText("**Complexity**: ${insight.complexity}/10\n")
-                            aiReportFile.appendText(
-                                    "**Refactoring Tips**: ${insight.refactoringTips.joinToString(", ")}\n\n"
-                            )
+                                insights.forEach { (path, insight) ->
+                                    aiReportFile.appendText("## ${File(path).name}\n")
+                                    aiReportFile.appendText("**Purpose**: ${insight.purpose}\n\n")
+                                    aiReportFile.appendText(
+                                            "**Complexity**: ${insight.complexity}/10\n"
+                                    )
+                                    aiReportFile.appendText(
+                                            "**Refactoring Tips**: ${insight.refactoringTips.joinToString(", ")}\n\n"
+                                    )
+                                }
+
+                                echo("✨ AI Insights saved to: ${aiReportFile.absolutePath}")
+                            }
+                        } catch (e: Exception) {
+                            echo("   ⚠️  AI analysis failed: ${e.message}")
+                            if (verbose) e.printStackTrace()
                         }
-
-                        echo("✨ AI Insights saved to: ${aiReportFile.absolutePath}")
                     }
                 }
             } catch (e: Exception) {
                 echo("❌ Analysis failed: ${e.message}")
-                e.printStackTrace()
+                if (verbose) e.printStackTrace()
+                throw e // Re-throw for proper exit code
             }
         }
 

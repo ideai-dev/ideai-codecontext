@@ -1,0 +1,1 @@
+{"file":"C:\\Users\\shiva\\Desktop\\CodeContext\\.\\src\\test\\kotlin\\com\\codecontext\\core\\EdgeCaseTest.kt","packageName":"com.broken","imports":["com.codecontext.core.parser.ParserFactory","io.kotest.core.spec.style.FunSpec","io.kotest.matchers.shouldBe","java.io.File","kotlin.io.path.createTempDirectory"]}

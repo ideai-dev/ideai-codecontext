@@ -1,0 +1,1 @@
+{"file":"C:\\Users\\shiva\\Desktop\\CodeContext\\.\\bin\\main\\com\\codecontext\\core\\scanner\\GitAnalyzer.kt","packageName":"com.codecontext.core.scanner","imports":["com.codecontext.core.parser.GitMetadata","com.codecontext.core.parser.ParsedFile","java.io.File","org.eclipse.jgit.api.Git","org.eclipse.jgit.lib.Repository","org.eclipse.jgit.storage.file.FileRepositoryBuilder"]}

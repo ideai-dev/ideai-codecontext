@@ -1,0 +1,1 @@
+{"file":"C:\\Users\\shiva\\Desktop\\CodeContext\\.\\bin\\test\\com\\codecontext\\core\\StressTest.kt","packageName":"com.stress","imports":["io.kotest.core.spec.style.FunSpec","io.kotest.matchers.file.shouldExist","java.io.File","kotlin.io.path.createTempDirectory"],"description":"Description for $name."}

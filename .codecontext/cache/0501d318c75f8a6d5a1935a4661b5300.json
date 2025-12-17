@@ -1,0 +1,1 @@
+{"file":"C:\\Users\\shiva\\Desktop\\CodeContext\\.\\bin\\main\\com\\codecontext\\cli\\CodeParallelParser.kt","packageName":"com.codecontext.cli","imports":["com.codecontext.core.cache.CacheManager","com.codecontext.core.parser.ParsedFile","com.codecontext.core.parser.ParserFactory","java.io.File","kotlinx.coroutines.*"]}

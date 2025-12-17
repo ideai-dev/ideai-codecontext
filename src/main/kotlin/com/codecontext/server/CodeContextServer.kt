@@ -17,6 +17,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import java.io.File
+import java.nio.file.Paths
 import kotlinx.serialization.Serializable
 
 @Serializable data class AnalysisRequest(val repoPath: String)
@@ -90,6 +91,28 @@ fun Application.module() {
                     }
                 }
 
+                // FIX: Validate and sanitize path
+                val sanitizedPath = sanitizePath(path)
+                if (sanitizedPath == null) {
+                    call.respond(
+                            io.ktor.http.HttpStatusCode.BadRequest,
+                            mapOf("error" to "Invalid or unsafe repository path")
+                    )
+                    return@post
+                }
+
+                path = sanitizedPath
+
+                // Security: Check if path exists and is readable
+                val repoDir = File(path)
+                if (!repoDir.exists() || !repoDir.canRead()) {
+                    call.respond(
+                            io.ktor.http.HttpStatusCode.BadRequest,
+                            mapOf("error" to "Repository path does not exist or is not readable")
+                    )
+                    return@post
+                }
+
                 // Security check needed in real app to prevent scanning root
                 // Using Refactored Logic
                 val (graph, parsedFiles, _) = AnalysisLogic.analyze(path)
@@ -128,6 +151,16 @@ fun Application.module() {
                 val request = call.receive<AskRequest>()
                 val config = ConfigLoader.load()
 
+                // FIX: Validate path for ask endpoint too
+                val sanitizedPath = sanitizePath(request.repoPath)
+                if (sanitizedPath == null) {
+                    call.respond(
+                            io.ktor.http.HttpStatusCode.BadRequest,
+                            mapOf("error" to "Invalid or unsafe repository path")
+                    )
+                    return@post
+                }
+
                 if (!config.ai.enabled) {
                     call.respond(
                             io.ktor.http.HttpStatusCode.BadRequest,
@@ -136,7 +169,7 @@ fun Application.module() {
                     return@post
                 }
 
-                val (graph, parsedFiles, _) = AnalysisLogic.analyze(request.repoPath)
+                val (graph, parsedFiles, _) = AnalysisLogic.analyze(sanitizedPath)
 
                 val hotspots = graph.getTopHotspots(10).map { it.first }
                 val context =
@@ -195,5 +228,47 @@ object AnalysisLogic {
         graph.analyze()
 
         return Triple(graph, parsedFiles, cacheManager)
+    }
+}
+
+// FIX: Security helper function to prevent path traversal
+fun sanitizePath(inputPath: String): String? {
+    try {
+        // Remove any dangerous characters
+        if (inputPath.contains("..") || inputPath.contains("~")) {
+            return null
+        }
+
+        // Convert to absolute path and verify it's within allowed directories
+        val path = Paths.get(inputPath).toAbsolutePath().normalize()
+        val canonicalPath = path.toFile().canonicalPath
+
+        // Define allowed base directories (configure these for your deployment)
+        val allowedBases =
+                listOf(
+                        "/tmp/codecontext",
+                        "/home",
+                        "/Users",
+                        "/workspace",
+                        "C:\\Users",
+                        "C:\\workspace",
+                        "C:\\temp",
+                        System.getProperty("user.dir"), // Current working directory
+                        System.getProperty("user.home") // User home directory
+                )
+
+        // Check if path starts with any allowed base
+        val isAllowed =
+                allowedBases.any { base ->
+                    try {
+                        canonicalPath.startsWith(File(base).canonicalPath)
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+
+        return if (isAllowed) canonicalPath else null
+    } catch (e: Exception) {
+        return null
     }
 }

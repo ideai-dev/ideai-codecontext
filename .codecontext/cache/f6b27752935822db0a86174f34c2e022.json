@@ -1,0 +1,1 @@
+{"file":"C:\\Users\\shiva\\Desktop\\CodeContext\\.\\src\\main\\kotlin\\com\\codecontext\\core\\parser\\JavaRealParser.kt","packageName":"com.codecontext.core.parser","imports":["com.github.javaparser.StaticJavaParser","com.github.javaparser.ast.CompilationUnit","java.io.File"]}

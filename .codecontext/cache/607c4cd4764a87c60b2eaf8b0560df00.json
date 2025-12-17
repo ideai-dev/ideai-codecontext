@@ -1,0 +1,1 @@
+{"file":"C:\\Users\\shiva\\Desktop\\CodeContext\\.\\src\\main\\kotlin\\com\\codecontext\\core\\cache\\CacheManager.kt","packageName":"com.codecontext.core.cache","imports":["com.codecontext.core.parser.ParsedFile","java.io.File","java.security.MessageDigest","kotlinx.serialization.encodeToString","kotlinx.serialization.json.Json"]}

@@ -1,0 +1,1 @@
+{"file":"C:\\Users\\shiva\\Desktop\\CodeContext\\.\\bin\\main\\com\\codecontext\\core\\config\\CodeContextConfig.kt","packageName":"com.codecontext.core.config","imports":["java.io.File","kotlinx.serialization.Serializable","kotlinx.serialization.encodeToString","kotlinx.serialization.json.Json"]}

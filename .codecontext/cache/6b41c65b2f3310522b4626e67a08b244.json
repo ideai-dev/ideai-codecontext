@@ -1,0 +1,1 @@
+{"file":"C:\\Users\\shiva\\Desktop\\CodeContext\\.\\bin\\test\\com\\codecontext\\core\\parser\\DescriptionTest.kt","packageName":"com.test","imports":["io.kotest.core.spec.style.FunSpec","io.kotest.matchers.shouldBe","java.io.File"],"description":"This is a test description. It has multiple lines."}

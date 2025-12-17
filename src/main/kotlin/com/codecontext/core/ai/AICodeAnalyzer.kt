@@ -37,9 +37,23 @@ class AICodeAnalyzer(
         private val client = HttpClient.newHttpClient()
         private val json = Json { ignoreUnknownKeys = true }
 
+        // FIX: Remove fake AI mode
+        private val isEnabled: Boolean =
+                apiKey.isNotBlank() && apiKey != "heuristic" && !apiKey.startsWith("demo")
+
+        /** Check if AI analysis is properly configured */
+        fun isConfigured(): Boolean = isEnabled
+
         /** Analyze a single file and generate comprehensive insights */
         suspend fun analyzeFile(file: ParsedFile, context: AnalysisContext): AIInsight =
                 withContext(Dispatchers.IO) {
+                        // FIX: Throw error instead of fake response
+                        if (!isEnabled) {
+                                throw IllegalStateException(
+                                        "AI analysis is not configured. Please set a valid API key in .codecontext.json"
+                                )
+                        }
+
                         val prompt = buildFileAnalysisPrompt(file, context)
                         val response = callClaude(prompt)
 
@@ -244,32 +258,7 @@ class AICodeAnalyzer(
         }
 
         private suspend fun callClaude(prompt: String): String {
-                // FALLBACK FOR DEMO / FREE MODE
-                if (apiKey.isBlank() || apiKey == "heuristic") {
-                        delay(500) // Simulate network latency
-                        // Extract file name from prompt to make it context-aware
-                        val fileName =
-                                prompt.lines()
-                                        .find { it.trim().startsWith("FILE:") }
-                                        ?.substringAfter(":")
-                                        ?.trim()
-                                        ?: "Unknown.kt"
-
-                        return """
-            {
-              "purpose": "A core component of the system responsible for logic related to $fileName.",
-              "complexity": 4,
-              "keyComponents": ["Class definition", "Functions"],
-              "refactoringTips": ["Consider splitting large functions", "Add KDoc documentation"],
-              "securityConcerns": [],
-              "businessImpact": "Maintains stability of the core workflow.",
-              "readingTime": 5,
-              "answer": "Based on the static analysis of $fileName, it appears to be a key logic file. I recommend checking its dependencies in the graph.",
-              "suggestedFiles": ["$fileName"],
-              "confidence": 0.8
-            }
-            """
-                }
+                // FIX: Removed fake AI fallback mode - now requires valid API key
 
                 val requestBody =
                         """

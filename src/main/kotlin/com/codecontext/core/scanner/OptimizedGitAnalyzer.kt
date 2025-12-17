@@ -1,5 +1,6 @@
 package com.codecontext.core.scanner
 
+import com.codecontext.core.config.ConfigLoader
 import com.codecontext.core.parser.GitMetadata
 import com.codecontext.core.parser.ParsedFile
 import java.io.File
@@ -27,13 +28,27 @@ class OptimizedGitAnalyzer {
 
             // OPTIMIZATION: Single pass through all commits
             val fileStats = mutableMapOf<String, FileChangeStats>()
-            // Limit to recent 1000 commits for performance vs depth trade-off
-            val commits = git.log().call().take(1000).toList()
 
-            println("🔍 Analyzing ${commits.size} commits...")
+            // FIX: Load commit limit from config
+            val config = ConfigLoader.load()
+            val commitLimit = config.gitCommitLimit
+
+            val commits = git.log().call().take(commitLimit).toList()
+            val totalCommits = commits.size
+
+            println("🔍 Analyzing $totalCommits commits (limit: $commitLimit)...")
+
+            if (totalCommits == commitLimit) {
+                println(
+                        "⚠️  Reached commit limit. Consider increasing gitCommitLimit in config for complete history."
+                )
+            }
 
             commits.forEachIndexed { index, commit ->
-                if (index % 100 == 0 && index > 0) println("   Progress: $index/${commits.size}")
+                if (index % 100 == 0 && index > 0) {
+                    val progress = (index * 100) / totalCommits
+                    println("   Progress: $progress% ($index/$totalCommits commits)")
+                }
 
                 // Get parent to compare changes
                 val parent = if (commit.parentCount > 0) commit.getParent(0) else null

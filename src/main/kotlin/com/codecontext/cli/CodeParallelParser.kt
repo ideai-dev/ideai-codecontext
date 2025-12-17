@@ -9,28 +9,65 @@ import kotlinx.coroutines.*
 class CodeParallelParser(private val cacheManager: CacheManager? = null) {
 
     suspend fun parseFiles(files: List<File>): List<ParsedFile> = coroutineScope {
-        // Chunk to avoid launching too many coroutines at once if files > 10000
-        // Use IO dispatcher for file operations
-        files.chunked(100).flatMap { chunk ->
+        // FIX: Dynamic chunk size based on available memory
+        val runtime = Runtime.getRuntime()
+        val availableMemory = runtime.freeMemory()
+        val totalMemory = runtime.totalMemory()
+        val usedMemory = totalMemory - availableMemory
+
+        // Use smaller chunks if memory is tight
+        val chunkSize =
+                when {
+                    availableMemory < 256_000_000 -> 25 // Low memory
+                    availableMemory < 512_000_000 -> 50 // Medium memory
+                    else -> 100 // High memory
+                }
+
+        println(
+                "💾 Memory: ${usedMemory / 1_000_000}MB used, ${availableMemory / 1_000_000}MB free"
+        )
+        println("📦 Using chunk size: $chunkSize")
+
+        // FIX: Add progress tracking
+        var processed = 0
+        val total = files.size
+
+        files.chunked(chunkSize).flatMap { chunk ->
             chunk
                     .map { file ->
                         async(Dispatchers.IO) {
-                            // Check cache first
-                            cacheManager?.getCachedParse(file)?.let {
-                                return@async it
+                            try {
+                                // Check cache first
+                                cacheManager?.getCachedParse(file)?.let {
+                                    processed++
+                                    if (processed % 100 == 0) {
+                                        println("   Progress: $processed/$total files")
+                                    }
+                                    return@async it
+                                }
+
+                                // Parse if not cached
+                                val parser = ParserFactory.getParser(file)
+                                val parsed = parser.parse(file)
+
+                                // Save to cache
+                                cacheManager?.saveParse(file, parsed)
+
+                                processed++
+                                if (processed % 100 == 0) {
+                                    println("   Progress: $processed/$total files")
+                                }
+
+                                parsed
+                            } catch (e: Exception) {
+                                // FIX: Don't crash on single file failure
+                                println("⚠️  Failed to parse ${file.name}: ${e.message}")
+                                null
                             }
-
-                            // Parse if not cached
-                            val parser = ParserFactory.getParser(file)
-                            val parsed = parser.parse(file)
-
-                            // Save to cache
-                            cacheManager?.saveParse(file, parsed)
-
-                            parsed
                         }
                     }
                     .awaitAll()
+                    .filterNotNull() // FIX: Remove failed files
         }
     }
 }
