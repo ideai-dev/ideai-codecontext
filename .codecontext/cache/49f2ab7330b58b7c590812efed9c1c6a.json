@@ -1,1 +1,0 @@
-{"file":"C:\\Users\\shiva\\Desktop\\CodeContext\\.\\src\\main\\kotlin\\com\\codecontext\\core\\temporal\\TemporalAnalyzer.kt","packageName":"com.codecontext.core.temporal","imports":["java.io.File","java.time.Instant","java.time.temporal.ChronoUnit","org.eclipse.jgit.api.Git","org.eclipse.jgit.revwalk.RevCommit","org.eclipse.jgit.treewalk.TreeWalk"]}

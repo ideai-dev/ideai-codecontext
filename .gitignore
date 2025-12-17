@@ -35,6 +35,9 @@ Desktop.ini
 /output/
 *.log
 temp/
+.codecontext/cache/
+test_output*.txt
+build-error.log
 
 # Kotlin
 *.class
