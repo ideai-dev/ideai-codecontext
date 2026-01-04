@@ -17,8 +17,7 @@ class AIAssistantCommand :
 
     override fun run() {
         if (question.isBlank()) {
-            echo("❌ Please provide a question. Usage: codecontext ask \"Where is auth logic?\"")
-            return
+            throw com.github.ajalt.clikt.core.PrintHelpMessage(currentContext)
         }
 
         val config = ConfigLoader.load()
@@ -27,60 +26,40 @@ class AIAssistantCommand :
             echo(
                     "❌ AI features disabled. Please enable them in .codecontext.json and set output.ai.apiKey"
             )
-            echo("Example config:")
-            echo(
-                    """
-                {
-                  "ai": {
-                    "enabled": true,
-                    "apiKey": "sk-ant-...",
-                    "provider": "anthropic"
-                  }
-                }
-            """.trimIndent()
-            )
             return
         }
 
         echo("🤖 Analyzing codebase to answer: \"$question\"")
 
         runBlocking {
+            // Quick Scan & Parse
+            echo("   Gathering context...")
+            val root = File(".")
+            val scanner = RepositoryScanner()
+            val files = scanner.scan(root.absolutePath)
+
+            // Re-instantiate cache manager or load config-based one
+            val cacheManager = com.codecontext.core.cache.CacheManager()
+            val parallelParser = CodeParallelParser(cacheManager)
+            val parsedFiles: List<com.codecontext.core.parser.ParsedFile> =
+                    parallelParser.parseFiles(files)
+
+            // Build Graph for Hotspots
+            val graph = RobustDependencyGraph()
+            graph.build(parsedFiles)
+            graph.analyze() // PageRank
+
+            val hotspots = graph.getTopHotspots(10).map { it.first }
+
+            val context =
+                    CodebaseContext(
+                            totalFiles = parsedFiles.size,
+                            languages = listOf("Kotlin/Java"),
+                            hotspots = hotspots,
+                            recentChanges = emptyList()
+                    )
+
             try {
-                // Quick Scan & Parse (We need context)
-                // In a real optimized version, we would load from checks/cache directly without
-                // reparsing if possible
-                // For now, we reuse the fast pipeline
-                echo("   Gathering context...")
-                val root = File(".")
-                val scanner = RepositoryScanner()
-                val files = scanner.scan(root.absolutePath)
-
-                // Re-instantiate cache manager or load config-based one
-                val cacheManager = com.codecontext.core.cache.CacheManager()
-                val parallelParser = CodeParallelParser(cacheManager)
-                val parsedFiles: List<com.codecontext.core.parser.ParsedFile> =
-                        parallelParser.parseFiles(files) // This uses cache, so it's fast
-
-                // Build Graph for Hotspots
-                val graph = RobustDependencyGraph()
-                graph.build(parsedFiles)
-                graph.analyze() // PageRank
-
-                val hotspots = graph.getTopHotspots(10).map { it.first }
-
-                // Gather minimal git context (skipping full log for speed in 'ask', or rely on
-                // cache)
-                // For 'ask', maybe just file list basics + hotspots is enough
-
-                val context =
-                        CodebaseContext(
-                                totalFiles = parsedFiles.size,
-                                languages = listOf("Kotlin/Java"), // Detect properly if needed
-                                hotspots = hotspots,
-                                recentChanges = emptyList() // Implement if we want 'recent changes'
-                                // context, usually slow
-                                )
-
                 val aiAnalyzer =
                         AICodeAnalyzer(config.ai.apiKey, config.ai.model, config.ai.provider)
                 val response = aiAnalyzer.askQuestion(question, context)
@@ -94,8 +73,8 @@ class AIAssistantCommand :
 
                 echo("\n🎯 Confidence: ${(response.confidence * 100).toInt()}%")
             } catch (e: Exception) {
-                echo("❌ Error: ${e.message}")
-                e.printStackTrace()
+                if (e is com.codecontext.core.exceptions.CodeContextException) throw e
+                throw com.codecontext.core.exceptions.AIProviderException("Failed to get AI response", e)
             }
         }
     }

@@ -10,12 +10,16 @@ import com.github.ajalt.clikt.core.subcommands
 
 /** The entry point of the application. Configures the CLI commands and executes the pipeline. */
 fun main(args: Array<String>) {
-    MainCommand()
-            .subcommands(
-                    ImprovedAnalyzeCommand(),
-                    AIAssistantCommand(),
-                    EvolutionCommand(),
-                    ServerCommand()
-            )
-            .main(args)
+    try {
+        MainCommand()
+                .subcommands(
+                        ImprovedAnalyzeCommand(),
+                        AIAssistantCommand(),
+                        EvolutionCommand(),
+                        ServerCommand()
+                )
+                .main(args)
+    } catch (e: Throwable) {
+        com.codecontext.cli.ErrorHandler.handle(e)
+    }
 }
