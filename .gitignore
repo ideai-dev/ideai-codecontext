@@ -48,3 +48,4 @@ build-error.log
 # Sensitive Data
 local.properties
 secrets.properties
+.codecontext.json
